@@ -36,7 +36,7 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// SetupAPMLibraryDotnet installs the .NET APM library.
+// SetupAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
 func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
@@ -114,13 +114,18 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 	return nil
 }
 
-// GarbageCollectAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
-func GarbageCollectAPMLibraryDotnet(pkgPath string) (err error) {
+// PreRemoveHookDotnet runs before the garbage collector deletes the package files for a version.
+// It checks that it's safe to delete it and cleans up the external dependencies of the package.
+func PreRemoveHookDotnet(pkgRepositoryPath string) (bool, error) {
+	// TODO: how to trace this function?
 	ctx := context.Background()
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgPath))
-	err = dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgPath))
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
+	exitCode, err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
 	if err != nil {
-		return err
+		// We only block deletion if we could not delete the native loader files
+		const errorRemovingNativeLoaderFiles = 6
+		shouldDelete := exitCode != errorRemovingNativeLoaderFiles
+		return shouldDelete, err
 	}
-	return nil
+	return true, nil
 }
