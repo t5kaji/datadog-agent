@@ -118,7 +118,7 @@ func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
 	s.Require().NoError(err, "failed to start IIS app")
 
 	output, err = s.Installer().RemovePackage("datadog-apm-library-dotnet")
-	s.Require().Error(err, "Removing the package while the native profiler is used by another process should fail")
+	s.Require().Error(err, "Removing the package while the native profiler is used by another process should fail: %s", output)
 
 	err = s.stopIISApp()
 	s.Require().NoError(err, "failed to stop IIS app")
