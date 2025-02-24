@@ -7,8 +7,8 @@ package dotnettests
 
 import (
 	_ "embed"
-	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -41,64 +41,93 @@ func TestDotnetLibraryInstalls(t *testing.T) {
 			)))
 }
 
+// func (s *testDotnetLibraryInstallSuite) SetupSuite() {
+// 	s.BaseSuite.SetupSuite()
+// 	s.installIIS()
+// 	s.installAspNet()
+// }
+
+// func (s *testDotnetLibraryInstallSuite) BeforeTest(suiteName, testName string) {
+// 	s.BaseSuite.BeforeTest(suiteName, testName)
+// 	s.Require().NoError(s.Installer().Install())
+// }
+
+// func (s *testDotnetLibraryInstallSuite) AfterTest(suiteName, testName string) {
+// 	s.BaseSuite.AfterTest(suiteName, testName)
+// 	s.Installer().Purge()
+// }
+
 // TestInstallUninstallDotnetLibraryPackage tests installing and uninstalling the Datadog APM Library for .NET using the Datadog installer.
 func (s *testDotnetLibraryInstallSuite) TestInstallUninstallDotnetLibraryPackage() {
 	s.Require().NoError(s.Installer().Install())
 	defer s.Installer().Purge()
 	s.installIIS()
+	s.installAspNet()
+	s.installDotnetAPMLibrary()
 
-	// TODO remove override once image is published
-	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+	s.removeDotnetAPMLibrary()
 
-	output, err = s.Installer().RemovePackage("datadog-apm-library-dotnet")
-
-	s.Require().NoErrorf(err, "failed to remove the dotnet library package: %s", output)
 	s.Require().Host(s.Env().RemoteHost).
 		NoDirExists(consts.GetStableDirFor("datadog-apm-library-dotnet"),
 			"the package directory should be removed")
 }
 
-// TestInstallUninstallDotnetLibraryPackage tests installing and uninstalling the Datadog APM Library for .NET using the Datadog installer.
 func (s *testDotnetLibraryInstallSuite) TestReinstall() {
 	s.Require().NoError(s.Installer().Install())
 	defer s.Installer().Purge()
 	s.installIIS()
 
-	// TODO remove override once image is published
-	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to instal the dotnet library package: %s", output)
+	s.installDotnetAPMLibrary()
 
-	output, err = s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+	s.installDotnetAPMLibrary()
 }
 
 func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	s.Require().NoError(s.Installer().Install())
 	defer s.Installer().Purge()
 	s.installIIS()
+	s.installAspNet()
 
-	// TODO remove override once image is published
-	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
+	const (
+		oldVersion = "3.11.0-pipeline.56386730.beta.sha-20f2bf1f-1"
+		newVersion = "3.11.0-pipeline.56515513.beta.sha-d6a0900f-1"
 	)
-	s.Require().NoErrorf(err, "failed to instal the dotnet library package: %s", output)
 
-	output, err = s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+	// Install first version
+	s.installDotnetAPMLibraryWithVersion(oldVersion)
+
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp()
+
+	// Check that the expected version of the library is loaded
+	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(oldLibraryPath, oldVersion[:len(oldVersion)-2])
+
+	// Install the new version of the library
+	s.installDotnetAPMLibraryWithVersion(newVersion)
+
+	// Check that the old version of the library is still loaded since we have not restarted yet
+	output := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(output, oldVersion[:len(oldVersion)-2])
+
+	// Check that a garbage collection does not remove the old version of the library
+	output, err := s.Installer().GarbageCollect()
+	s.Require().NoErrorf(err, "failed to garbage collect: %s", output)
+	s.Require().Host(s.Env().RemoteHost).DirExists(oldLibraryPath, "the old library path: %s should still exist after garbage collection", oldLibraryPath)
+
+	// Restart the IIS application
+	s.startIISApp()
+
+	// Check that the new version of the library is loaded
+	output = s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(output, newVersion[:len(newVersion)-2], "the new library path should contain the new version")
+
+	// Check that garbage collection removes the old version of the library
+	output, err = s.Installer().GarbageCollect()
+	s.Require().NoErrorf(err, "failed to garbage collect: %s", output)
+	s.Require().Host(s.Env().RemoteHost).NoDirExists(oldLibraryPath, "the old library path should still exist after garbage collection is run once IIS is restarted")
+
 }
 
 func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
@@ -107,41 +136,52 @@ func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
 	s.installIIS()
 	s.installAspNet()
 
-	// TODO remove override once image is published
-	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+	s.installDotnetAPMLibrary()
 
-	err = s.startIISApp()
-	s.Require().NoError(err, "failed to start IIS app")
+	defer s.stopIISApp()
+	s.startIISApp()
 
-	output, err = s.Installer().RemovePackage("datadog-apm-library-dotnet")
+	output, err := s.Installer().RemovePackage("datadog-apm-library-dotnet")
 	s.Require().Error(err, "Removing the package while the native profiler is used by another process should fail: %s", output)
 
-	err = s.stopIISApp()
-	s.Require().NoError(err, "failed to stop IIS app")
+	s.stopIISApp()
 
-	output, err = s.Installer().RemovePackage("datadog-apm-library-dotnet")
-	s.Require().NoErrorf(err, "failed to remove the dotnet library package: %s", output)
+	s.removeDotnetAPMLibrary()
 }
 
-func (s *testDotnetLibraryInstallSuite) TestCorruptedPackageGetsDeleted() {
+func (s *testDotnetLibraryInstallSuite) TestRemoveCorruptedPackageFails() {
 	s.Require().NoError(s.Installer().Install())
 	defer s.Installer().Purge()
 	s.installIIS()
 
-	// TODO remove override once image is published
-	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("428c2fc49dc8e75040934d590fa52912f768ded7"),
-		installer.WithRegistry("installtesting.datad0g.com"),
-	)
-	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+	s.installDotnetAPMLibrary()
 
 	s.Env().RemoteHost.Remove(filepath.Join(consts.GetStableDirFor("datadog-apm-library-dotnet"), "installer", "Datadog.FleetInstaller.exe"))
 
-	output, err = s.Installer().RemovePackage("datadog-apm-library-dotnet")
+	output, err := s.Installer().RemovePackage("datadog-apm-library-dotnet")
+	s.Require().Error(err, "Removing the package when the dotnet installer binary is missing should fail: %s", output)
+}
+
+func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibrary() {
+	// TODO remove override once image is published in prod
+	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
+		installer.WithVersion("3.11.0-pipeline.56515513.beta.sha-d6a0900f-1"),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+}
+
+func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibraryWithVersion(version string) {
+	// TODO remove override once image is published in prod
+	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
+		installer.WithVersion(version),
+		installer.WithRegistry("install.datad0g.com"),
+	)
+	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
+}
+
+func (s *testDotnetLibraryInstallSuite) removeDotnetAPMLibrary() {
+	output, err := s.Installer().RemovePackage("datadog-apm-library-dotnet")
 	s.Require().NoErrorf(err, "failed to remove the dotnet library package: %s", output)
 }
 
@@ -158,20 +198,14 @@ func (s *testDotnetLibraryInstallSuite) installAspNet() {
 	s.Require().NoErrorf(err, "failed to install Asp.Net: %s", output)
 }
 
-func (s *testDotnetLibraryInstallSuite) startIISApp() error {
+func (s *testDotnetLibraryInstallSuite) startIISApp() {
 	host := s.Env().RemoteHost
 	err := host.MkdirAll("C:\\inetpub\\wwwroot\\DummyApp")
-	if err != nil {
-		return fmt.Errorf("failed to create site directory: %w", err)
-	}
+	s.Require().NoError(err, "failed to create directory for DummyApp")
 	_, err = host.WriteFile("C:\\inetpub\\wwwroot\\DummyApp\\web.config", webConfigFile)
-	if err != nil {
-		return fmt.Errorf("failed to write web.config file: %w", err)
-	}
+	s.Require().NoError(err, "failed to write web.config file")
 	_, err = host.WriteFile("C:\\inetpub\\wwwroot\\DummyApp\\index.aspx", aspxFile)
-	if err != nil {
-		return fmt.Errorf("failed to write web.config file: %w", err)
-	}
+	s.Require().NoError(err, "failed to write index.aspx file")
 	script := `
 $SitePath = "C:\inetpub\wwwroot\DummyApp"
 New-WebSite -Name DummyApp -PhysicalPath $SitePath -Port 8080 -ApplicationPool "DefaultAppPool" -Force
@@ -185,13 +219,10 @@ Restart-WebAppPool -Name "DefaultAppPool"
 Invoke-WebRequest -Uri "http://localhost:8080/index.aspx" -UseBasicParsing
 	`
 	output, err := host.Execute(script)
-	if err != nil {
-		return fmt.Errorf("failed to start site: %w\n%s", err, output)
-	}
-	return nil
+	s.Require().NoErrorf(err, "failed to start site: %s", output)
 }
 
-func (s *testDotnetLibraryInstallSuite) stopIISApp() error {
+func (s *testDotnetLibraryInstallSuite) stopIISApp() {
 	script := `
 Stop-WebSite -Name "DummyApp"
 Stop-WebAppPool -Name "DefaultAppPool"
@@ -208,8 +239,12 @@ if ($status -ne "Stopped") {
 	`
 	host := s.Env().RemoteHost
 	output, err := host.Execute(script)
-	if err != nil {
-		return fmt.Errorf("failed to start site: %w\n%s", err, output)
-	}
-	return nil
+	s.Require().NoErrorf(err, "failed to stop site: %s", output)
+}
+
+func (s *testDotnetLibraryInstallSuite) getLibraryPathFromInstrumentedIIS() string {
+	host := s.Env().RemoteHost
+	output, err := host.Execute("(Invoke-WebRequest -Uri \"http://localhost:8080/index.aspx\" -UseBasicParsing).Content")
+	s.Require().NoErrorf(err, "failed to get content from site: %s", output)
+	return strings.TrimSpace(output)
 }

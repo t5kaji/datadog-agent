@@ -65,6 +65,7 @@ func (r *RemoteWindowsHostAssertions) HasNoService(serviceName string) *RemoteWi
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) DirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
 	r.suite.T().Helper()
+	fmt.Println("Checking if directory exists at path: ", path)
 	_, err := r.remoteHost.Lstat(path)
 	r.require.NoError(err, msgAndArgs...)
 	return r
