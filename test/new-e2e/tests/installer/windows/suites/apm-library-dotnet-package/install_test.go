@@ -225,16 +225,18 @@ Invoke-WebRequest -Uri "http://localhost:8080/index.aspx" -UseBasicParsing
 func (s *testDotnetLibraryInstallSuite) stopIISApp() {
 	script := `
 Stop-WebSite -Name "DummyApp"
-Stop-WebAppPool -Name "DefaultAppPool"
-$retryCount = 0
-do {
-    Start-Sleep -Seconds 1
-    $status = (Get-WebAppPoolState -Name DefaultAppPool).Value
-    $retryCount++
-} while ($status -ne "Stopped" -and $retryCount -lt 60)
-
-if ($status -ne "Stopped") {
-	exit -1
+$state = (Get-WebAppPoolState -Name "DefaultAppPool").Value
+if ($state -ne "Stopped") {
+	Stop-WebAppPool -Name "DefaultAppPool"
+	$retryCount = 0
+	do {
+		Start-Sleep -Seconds 1
+		$status = (Get-WebAppPoolState -Name DefaultAppPool).Value
+		$retryCount++
+	} while ($status -ne "Stopped" -and $retryCount -lt 60)
+	if ($status -ne "Stopped") {
+		exit -1
+	}
 }
 	`
 	host := s.Env().RemoteHost
