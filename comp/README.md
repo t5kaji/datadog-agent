@@ -219,6 +219,13 @@ Package telemetry implements a component for all agent telemetry.
 
 Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
+## [comp/core/mock](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/mock) (Component Bundle)
+
+*Datadog Team*: agent-runtimes
+
+Package core implements the "core" bundle, providing services common to all
+agent flavors and binaries.
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metric-pipelines
