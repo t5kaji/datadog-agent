@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -354,7 +356,10 @@ func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
 
 func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	suite.config.SetWithoutSource("api_key", "wassupkey")
-	suite.Equal("wassupkey", defaultLogsConfigKeys(suite.config).getAPIKeyGetter()())
+
+	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
+	assert.Equal(suite.T(), "wassupkey", apiKey)
+	assert.Equal(suite.T(), "api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("wassupkey", endpoints.Main.GetAPIKey())
@@ -363,7 +368,10 @@ func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	suite.config.SetWithoutSource("api_key", "wassupkey")
 	suite.config.SetWithoutSource("logs_config.api_key", "wassuplogskey")
-	suite.Equal("wassuplogskey", defaultLogsConfigKeys(suite.config).getAPIKeyGetter()())
+
+	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
+	assert.Equal(suite.T(), "wassuplogskey", apiKey)
+	assert.Equal(suite.T(), "logs_config.api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("wassuplogskey", endpoints.Main.GetAPIKey())
@@ -627,8 +635,8 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.config.SetWithoutSource("api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := NewTCPEndpoint(logsConfig)
-	http := NewHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig)
+	http := newHTTPEndpoint(logsConfig)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -660,8 +668,8 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetWithoutSource("logs_config.api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := NewTCPEndpoint(logsConfig)
-	http := NewHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig)
+	http := newHTTPEndpoint(logsConfig)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -696,19 +704,25 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", jsonString)
 
 	expected1 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey2" },
-		isReliable:       true,
-		useSSL:           true,
-		Host:             "localhost1",
-		Port:             1234,
-		UseCompression:   true,
-		CompressionLevel: 12,
+		apiKey:                 atomic.NewString("apiKey2"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		isReliable:             true,
+		useSSL:                 true,
+		Host:                   "localhost1",
+		Port:                   1234,
+		UseCompression:         true,
+		CompressionLevel:       12,
 	}
 	expected2 := Endpoint{
-		apiKeyGetter: func() string { return "apiKey3" },
-		isReliable:   false,
-		Host:         "localhost2",
-		Port:         5678,
+		apiKey:                 atomic.NewString("apiKey3"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		isReliable:             false,
+		Host:                   "localhost2",
+		Port:                   5678,
 	}
 
 	main := Endpoint{useSSL: true}
@@ -738,23 +752,29 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", jsonString)
 
 	expected1 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey2" },
-		isReliable:       true,
-		useSSL:           true,
-		Host:             "localhost1",
-		Port:             1234,
-		UseCompression:   true, // compression from main overwrite the config
-		CompressionLevel: 123,
-		Version:          123,
+		apiKey:                 atomic.NewString("apiKey2"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		isReliable:             true,
+		useSSL:                 true,
+		Host:                   "localhost1",
+		Port:                   1234,
+		UseCompression:         true, // compression from main overwrite the config
+		CompressionLevel:       123,
+		Version:                123,
 	}
 	expected2 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey3" },
-		isReliable:       false,
-		Host:             "localhost2",
-		Port:             5678,
-		UseCompression:   true,
-		CompressionLevel: 123,
-		Version:          EPIntakeVersion2,
+		apiKey:                 atomic.NewString("apiKey3"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		isReliable:             false,
+		Host:                   "localhost2",
+		Port:                   5678,
+		UseCompression:         true,
+		CompressionLevel:       123,
+		Version:                EPIntakeVersion2,
 		// Those are enforce when EPIntakeVersion2 is used
 		TrackType: "some track type",
 		Protocol:  "some intake protocol",
