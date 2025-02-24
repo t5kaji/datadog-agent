@@ -148,7 +148,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fxutil.ProvideOptional[coreconfig.Component](),
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
-			AgentType:  workloadmeta.NodeAgent,
+			AgentType: workloadmeta.NodeAgent,
 		}),
 		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
