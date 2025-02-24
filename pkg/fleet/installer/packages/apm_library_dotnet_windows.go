@@ -9,6 +9,8 @@ package packages
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
