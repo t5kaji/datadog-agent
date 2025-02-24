@@ -525,7 +525,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
       - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
       # apm-library-dotnet
-      - EXTRA_PARAMS: --run "TestInstallDotnetLibraryPackage$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
 
 
 new-e2e-installer-ansible:
