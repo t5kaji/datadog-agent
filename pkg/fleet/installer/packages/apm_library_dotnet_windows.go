@@ -108,6 +108,12 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
 
 	if err != nil {
+		// If the remove is being retried after a failed first attempt, the stable symlink may have been removed
+		// so we do not consider this an error
+		if errors.Is(err, fs.ErrNotExist) {
+			log.Warn("Stable symlink does not exist, assuming the package has already been partially removed and skipping UninstallProduct")
+			return nil
+		}
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
