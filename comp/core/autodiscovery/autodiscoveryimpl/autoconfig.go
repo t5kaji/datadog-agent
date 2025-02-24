@@ -100,7 +100,7 @@ const (
 	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
 	MaxWmetaWaitTime = 10 * time.Second
 	// WmetaCheckMinInterval is the initial interval to check if wmeta is ready
-	WmetaCheckMinInterval = 200 * time.Microsecond
+	WmetaCheckMinInterval = 50 * time.Microsecond
 	// WmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
 	WmetaCheckMaxInterval = 1 * time.Second
 )
@@ -164,7 +164,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 					return nil
 				}
 				retries++
-				deps.Log.Warnf("Workloadmeta collectors are not ready, will possibly retry")
+				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
 				return errors.New("workloadmeta not initialized")
 			}
 			schController.Start()
