@@ -7,6 +7,7 @@ use (
 	comp/api/api/def
 	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -28,7 +29,6 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
-    comp/core/configsync
 	comp/core/telemetry
 	comp/def
 	comp/forwarder/defaultforwarder
