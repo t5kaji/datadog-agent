@@ -106,6 +106,7 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 	defer func() { span.Finish(err) }()
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
+
 	if err != nil {
 		return err
 	}
