@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/config/remote
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
@@ -193,6 +195,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
+	github.com/DataDog/datadog-agent/pkg/api/security/cert => ../../../pkg/api/security/cert
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
