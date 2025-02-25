@@ -15,7 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
-	github.com/DataDog/datadog-agent/pkg/fips v0.0.0
+	github.com/DataDog/datadog-agent/pkg/fips v0.65.0-devel.0.20250225015728-bd66ea57f7e4
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0
