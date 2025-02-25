@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/vishvananda/netlink"
 	"math"
 	"net"
 	"os"
@@ -1766,8 +1767,11 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 
 			if err := p.setupNewTCClassifier(netDevice); err != nil {
 				var qnde QueuedNetworkDeviceError
+				var linkNotFound netlink.LinkNotFoundError
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
+				} else if errors.As(err, &linkNotFound) {
+					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
 				} else {
 					seclog.Errorf("error setting up new tc classifier: %v", err)
 				}
@@ -1784,9 +1788,7 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 	if netns != nil {
 		handle, err = netns.GetNamespaceHandleDup()
 	}
-	if err != nil {
-		defer handle.Close()
-	}
+	defer handle.Close()
 	if netns == nil || err != nil || handle == nil {
 		// queue network device so that a TC classifier can be added later
 		p.Resolvers.NamespaceResolver.QueueNetworkDevice(device)
